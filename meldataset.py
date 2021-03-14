@@ -55,14 +55,16 @@ def mel_spectrogram(y, n_fft, num_mels, sampling_rate, hop_size, win_size, fmin,
     global mel_basis, hann_window
     if fmax not in mel_basis:
         mel = librosa_mel_fn(sampling_rate, n_fft, num_mels, fmin, fmax)
-        mel_basis[str(fmax)+'_'+str(y.device)] = torch.from_numpy(mel).float().to(y.device)
+        mel_basis[str(fmax)+'_'+str(y.device)
+                  ] = torch.from_numpy(mel).float().to(y.device)
         hann_window[str(y.device)] = torch.hann_window(win_size).to(y.device)
 
-    y = torch.nn.functional.pad(y.unsqueeze(1), (int((n_fft-hop_size)/2), int((n_fft-hop_size)/2)), mode='reflect')
+    y = torch.nn.functional.pad(y.unsqueeze(
+        1), (int((n_fft-hop_size)/2), int((n_fft-hop_size)/2)), mode='reflect')
     y = y.squeeze(1)
 
     spec = torch.stft(y, n_fft, hop_length=hop_size, win_length=win_size, window=hann_window[str(y.device)],
-                      center=center, pad_mode='reflect', normalized=False, onesided=True)
+                      center=center, pad_mode='reflect', normalized=False, onesided=True, return_complex=False)
 
     spec = torch.sqrt(spec.pow(2).sum(-1)+(1e-9))
 
@@ -86,7 +88,7 @@ def get_dataset_filelist(a):
 class MelDataset(torch.utils.data.Dataset):
     def __init__(self, training_files, segment_size, n_fft, num_mels,
                  hop_size, win_size, sampling_rate,  fmin, fmax, split=True, shuffle=True, n_cache_reuse=1,
-                 device=None, fmax_loss=None, fine_tuning=False, base_mels_path=None):
+                 device=None, num_mels_loss=120, fmax_loss=11025, fine_tuning=False, base_mels_path=None):
         self.audio_files = training_files
         random.seed(1234)
         if shuffle:
@@ -100,6 +102,7 @@ class MelDataset(torch.utils.data.Dataset):
         self.win_size = win_size
         self.fmin = fmin
         self.fmax = fmax
+        self.num_mels_loss = num_mels_loss
         self.fmax_loss = fmax_loss
         self.cached_wav = None
         self.n_cache_reuse = n_cache_reuse
@@ -134,7 +137,8 @@ class MelDataset(torch.utils.data.Dataset):
                     audio_start = random.randint(0, max_audio_start)
                     audio = audio[:, audio_start:audio_start+self.segment_size]
                 else:
-                    audio = torch.nn.functional.pad(audio, (0, self.segment_size - audio.size(1)), 'constant')
+                    audio = torch.nn.functional.pad(
+                        audio, (0, self.segment_size - audio.size(1)), 'constant')
 
             mel = mel_spectrogram(audio, self.n_fft, self.num_mels,
                                   self.sampling_rate, self.hop_size, self.win_size, self.fmin, self.fmax,
@@ -151,14 +155,18 @@ class MelDataset(torch.utils.data.Dataset):
                 frames_per_seg = math.ceil(self.segment_size / self.hop_size)
 
                 if audio.size(1) >= self.segment_size:
-                    mel_start = random.randint(0, mel.size(2) - frames_per_seg - 1)
+                    mel_start = random.randint(
+                        0, mel.size(2) - frames_per_seg - 1)
                     mel = mel[:, :, mel_start:mel_start + frames_per_seg]
-                    audio = audio[:, mel_start * self.hop_size:(mel_start + frames_per_seg) * self.hop_size]
+                    audio = audio[:, mel_start *
+                                  self.hop_size:(mel_start + frames_per_seg) * self.hop_size]
                 else:
-                    mel = torch.nn.functional.pad(mel, (0, frames_per_seg - mel.size(2)), 'constant')
-                    audio = torch.nn.functional.pad(audio, (0, self.segment_size - audio.size(1)), 'constant')
+                    mel = torch.nn.functional.pad(
+                        mel, (0, frames_per_seg - mel.size(2)), 'constant')
+                    audio = torch.nn.functional.pad(
+                        audio, (0, self.segment_size - audio.size(1)), 'constant')
 
-        mel_loss = mel_spectrogram(audio, self.n_fft, self.num_mels,
+        mel_loss = mel_spectrogram(audio, self.n_fft, self.num_mels_loss,
                                    self.sampling_rate, self.hop_size, self.win_size, self.fmin, self.fmax_loss,
                                    center=False)
 
