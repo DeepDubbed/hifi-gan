@@ -88,7 +88,7 @@ def get_dataset_filelist(a):
 class MelDataset(torch.utils.data.Dataset):
     def __init__(self, training_files, segment_size, n_fft, num_mels,
                  hop_size, win_size, sampling_rate,  fmin, fmax, split=True, shuffle=True, n_cache_reuse=1,
-                 device=None, num_mels_loss=120, fmax_loss=11025, fine_tuning=False, base_mels_path=None):
+                 device=None, num_mels_loss=80, fmax_loss=11025, fine_tuning=False, base_mels_path=None):
         self.audio_files = training_files
         random.seed(1234)
         if shuffle:
