@@ -89,8 +89,7 @@ def get_dataset_filelist(a):
 class MelDataset(torch.utils.data.Dataset):
     def __init__(self, training_files, segment_size, n_fft, num_mels,
                  hop_size, win_size, sampling_rate,  fmin, fmax, split=True, shuffle=True, 
-                 device=None, num_mels_loss=80, fmax_loss=11025, fine_tuning=False, base_mels_path=None, 
-                 shared_wav_cache = {}, shared_mel_cache = {}):
+                 device=None, num_mels_loss=80, fmax_loss=11025, fine_tuning=False, base_mels_path=None, use_cache=False):
         self.audio_files = training_files
         random.seed(1234)
         if shuffle:
@@ -106,19 +105,19 @@ class MelDataset(torch.utils.data.Dataset):
         self.fmax = fmax
         self.num_mels_loss = num_mels_loss
         self.fmax_loss = fmax_loss
-        self.cached_wav = shared_wav_cache
-        self.cache_mel = shared_mel_cache
+        self.cached_wav = {}
+        self.cache_mel = {}
         #self.n_cache_reuse = n_cache_reuse
         self._cache_ref_count = 0
         self.device = device
         self.fine_tuning = fine_tuning
         self.base_mels_path = base_mels_path
-        print(f'MelDataset init {len(self.audio_files)}')
+        self.use_cache = use_cache
 
     def __getitem__(self, index):
         filename = self.audio_files[index]
         mel_filename = os.path.join(self.base_mels_path, os.path.splitext(os.path.split(filename)[-1])[0] + '.npy')
-        if filename not in self.cached_wav.keys():
+        if not self.use_cache or filename not in self.cached_wav.keys():
             audio, sampling_rate = load_wav(filename)
             if sampling_rate != self.sampling_rate:
                 raise ValueError("{} SR doesn't match target {} SR".format(
@@ -128,11 +127,12 @@ class MelDataset(torch.utils.data.Dataset):
             #     audio = normalize(audio) * 0.95
             audio = torch.FloatTensor(audio)
             audio = audio.unsqueeze(0)
-            self.cached_wav[filename] = audio
+            if self.use_cache:
+                self.cached_wav[filename] = audio
         else:
             audio = self.cached_wav[filename]
 
-        if mel_filename not in self.cache_mel.keys():
+        if not self.use_cache or mel_filename not in self.cache_mel.keys():
             if os.path.exists(mel_filename):
                 mel = np.load(mel_filename)
                 mel = torch.from_numpy(mel)
@@ -143,7 +143,9 @@ class MelDataset(torch.utils.data.Dataset):
                                   self.sampling_rate, self.hop_size, self.win_size, self.fmin, self.fmax,
                                   center=False)
                 np.save(mel_filename, mel.numpy())
-            self.cache_mel[mel_filename] = mel
+                
+            if self.use_cache:
+                self.cache_mel[mel_filename] = mel
         else:
             mel = self.cache_mel[mel_filename]
 

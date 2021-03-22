@@ -79,14 +79,10 @@ def train(rank, a, h):
 
     training_filelist, validation_filelist = get_dataset_filelist(a)
 
-    manager = Manager()
-    shared_wav_cache = manager.dict()
-    shared_mel_cache = manager.dict()
     trainset = MelDataset(training_filelist, h.segment_size, h.n_fft, h.num_mels,
                           h.hop_size, h.win_size, h.sampling_rate, h.fmin, h.fmax,
                           shuffle=False if h.num_gpus > 1 else True, num_mels_loss=h.num_mels_loss, fmax_loss=h.fmax_for_loss,
-                          device=device, fine_tuning=a.fine_tuning, base_mels_path=a.input_mels_dir, 
-                          shared_wav_cache=shared_wav_cache, shared_mel_cache=shared_mel_cache)
+                          device=device, fine_tuning=a.fine_tuning, base_mels_path=a.input_mels_dir, use_cache=True)
 
     train_sampler = DistributedSampler(trainset) if h.num_gpus > 1 else None
 
@@ -94,16 +90,16 @@ def train(rank, a, h):
                               sampler=train_sampler,
                               batch_size=h.batch_size,
                               pin_memory=True,
-                              drop_last=True)
+                              drop_last=True,
+                              persistent_workers=True)
 
     if rank == 0:
         validset = MelDataset(validation_filelist, h.segment_size, h.n_fft, h.num_mels,
                               h.hop_size, h.win_size, h.sampling_rate, h.fmin, h.fmax, False, False,
                               num_mels_loss=h.num_mels_loss, fmax_loss=h.fmax_for_loss,
                               device=device, fine_tuning=a.fine_tuning,
-                              base_mels_path=a.input_mels_dir,
-                              shared_wav_cache=shared_wav_cache, shared_mel_cache=shared_mel_cache)
-        validation_loader = DataLoader(validset, num_workers=1, shuffle=False,
+                              base_mels_path=a.input_mels_dir, use_cache=True)
+        validation_loader = DataLoader(validset, num_workers=0, shuffle=False,
                                        sampler=None,
                                        batch_size=1,
                                        pin_memory=True,
