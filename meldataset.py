@@ -7,6 +7,7 @@ import numpy as np
 from librosa.util import normalize
 from scipy.io.wavfile import read
 from librosa.filters import mel as librosa_mel_fn
+import multiprocessing as mp
 
 MAX_WAV_VALUE = 32768.0
 
@@ -87,8 +88,9 @@ def get_dataset_filelist(a):
 
 class MelDataset(torch.utils.data.Dataset):
     def __init__(self, training_files, segment_size, n_fft, num_mels,
-                 hop_size, win_size, sampling_rate,  fmin, fmax, split=True, shuffle=True, n_cache_reuse=1,
-                 device=None, num_mels_loss=80, fmax_loss=11025, fine_tuning=False, base_mels_path=None):
+                 hop_size, win_size, sampling_rate,  fmin, fmax, split=True, shuffle=True, 
+                 device=None, num_mels_loss=80, fmax_loss=11025, fine_tuning=False, base_mels_path=None, 
+                 shared_wav_cache = {}, shared_mel_cache = {}):
         self.audio_files = training_files
         random.seed(1234)
         if shuffle:
@@ -104,8 +106,8 @@ class MelDataset(torch.utils.data.Dataset):
         self.fmax = fmax
         self.num_mels_loss = num_mels_loss
         self.fmax_loss = fmax_loss
-        self.cached_wav = {}
-        self.cache_mel = {}
+        self.cached_wav = shared_wav_cache
+        self.cache_mel = shared_mel_cache
         #self.n_cache_reuse = n_cache_reuse
         self._cache_ref_count = 0
         self.device = device
@@ -144,8 +146,6 @@ class MelDataset(torch.utils.data.Dataset):
             self.cache_mel[mel_filename] = mel
         else:
             mel = self.cache_mel[mel_filename]
-
-
 
         if self.split:
             frames_per_seg = math.ceil(self.segment_size / self.hop_size)

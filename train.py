@@ -17,6 +17,7 @@ import os
 import itertools
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
+from multiprocessing import Manager
 
 torch.backends.cudnn.benchmark = True
 
@@ -78,14 +79,18 @@ def train(rank, a, h):
 
     training_filelist, validation_filelist = get_dataset_filelist(a)
 
+    manager = Manager()
+    shared_wav_cache = manager.dict()
+    shared_mel_cache = manager.dict()
     trainset = MelDataset(training_filelist, h.segment_size, h.n_fft, h.num_mels,
-                          h.hop_size, h.win_size, h.sampling_rate, h.fmin, h.fmax, n_cache_reuse=0,
+                          h.hop_size, h.win_size, h.sampling_rate, h.fmin, h.fmax,
                           shuffle=False if h.num_gpus > 1 else True, num_mels_loss=h.num_mels_loss, fmax_loss=h.fmax_for_loss,
-                          device=device, fine_tuning=a.fine_tuning, base_mels_path=a.input_mels_dir)
+                          device=device, fine_tuning=a.fine_tuning, base_mels_path=a.input_mels_dir, 
+                          shared_wav_cache=shared_wav_cache, shared_mel_cache=shared_mel_cache)
 
     train_sampler = DistributedSampler(trainset) if h.num_gpus > 1 else None
 
-    train_loader = DataLoader(trainset, num_workers=h.num_workers, shuffle=True,
+    train_loader = DataLoader(trainset, num_workers=h.num_workers, shuffle=False,
                               sampler=train_sampler,
                               batch_size=h.batch_size,
                               pin_memory=True,
@@ -96,7 +101,8 @@ def train(rank, a, h):
                               h.hop_size, h.win_size, h.sampling_rate, h.fmin, h.fmax, False, False, n_cache_reuse=0,
                               num_mels_loss=h.num_mels_loss, fmax_loss=h.fmax_for_loss,
                               device=device, fine_tuning=a.fine_tuning,
-                              base_mels_path=a.input_mels_dir)
+                              base_mels_path=a.input_mels_dir,
+                              shared_wav_cache=shared_wav_cache, shared_mel_cache=shared_mel_cache)
         validation_loader = DataLoader(validset, num_workers=1, shuffle=False,
                                        sampler=None,
                                        batch_size=1,
