@@ -104,27 +104,31 @@ class MelDataset(torch.utils.data.Dataset):
         self.fmax = fmax
         self.num_mels_loss = num_mels_loss
         self.fmax_loss = fmax_loss
-        self.cached_wav = None
-        self.cache_mel = None
-        self.n_cache_reuse = n_cache_reuse
+        self.cached_wav = {}
+        self.cache_mel = {}
+        #self.n_cache_reuse = n_cache_reuse
         self._cache_ref_count = 0
         self.device = device
         self.fine_tuning = fine_tuning
         self.base_mels_path = base_mels_path
+        print(f'MelDataset init {len(self.audio_files)}')
 
     def __getitem__(self, index):
         filename = self.audio_files[index]
         mel_filename = os.path.join(self.base_mels_path, os.path.splitext(os.path.split(filename)[-1])[0] + '.npy')
-        if self._cache_ref_count == 0:
+        if filename not in self.cached_wav.keys():
             audio, sampling_rate = load_wav(filename)
             if sampling_rate != self.sampling_rate:
                 raise ValueError("{} SR doesn't match target {} SR".format(
                     sampling_rate, self.sampling_rate))
             audio = audio / MAX_WAV_VALUE
-            if not self.fine_tuning:
-                audio = normalize(audio) * 0.95
-            self.cached_wav = audio
-            
+            # if not self.fine_tuning:
+            #     audio = normalize(audio) * 0.95
+            self.cached_wav[filename] = audio
+        else:
+            audio = self.cached_wav[filename]
+
+        if mel_filename not in self.cache_mel.keys():
             if os.path.exists(mel_filename):
                 mel = np.load(mel_filename)
                 mel = torch.from_numpy(mel)
@@ -135,12 +139,9 @@ class MelDataset(torch.utils.data.Dataset):
                                   self.sampling_rate, self.hop_size, self.win_size, self.fmin, self.fmax,
                                   center=False)
                 np.save(mel_filename, mel.numpy())
-            self.cache_mel = mel
-            self._cache_ref_count = self.n_cache_reuse
+            self.cache_mel[mel_filename] = mel
         else:
-            audio = self.cached_wav
-            mel = self.cache_mel
-            #self._cache_ref_count -= 1
+            mel = self.cache_mel[mel_filename]
 
         audio = torch.FloatTensor(audio)
         audio = audio.unsqueeze(0)
