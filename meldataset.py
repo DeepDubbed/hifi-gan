@@ -124,6 +124,8 @@ class MelDataset(torch.utils.data.Dataset):
             audio = audio / MAX_WAV_VALUE
             # if not self.fine_tuning:
             #     audio = normalize(audio) * 0.95
+            audio = torch.FloatTensor(audio)
+            audio = audio.unsqueeze(0)
             self.cached_wav[filename] = audio
         else:
             audio = self.cached_wav[filename]
@@ -143,8 +145,7 @@ class MelDataset(torch.utils.data.Dataset):
         else:
             mel = self.cache_mel[mel_filename]
 
-        audio = torch.FloatTensor(audio)
-        audio = audio.unsqueeze(0)
+
 
         if self.split:
             frames_per_seg = math.ceil(self.segment_size / self.hop_size)
