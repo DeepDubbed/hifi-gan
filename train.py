@@ -82,16 +82,17 @@ def train(rank, a, h):
     trainset = MelDataset(training_filelist, h.segment_size, h.n_fft, h.num_mels,
                           h.hop_size, h.win_size, h.sampling_rate, h.fmin, h.fmax,
                           shuffle=False if h.num_gpus > 1 else True, num_mels_loss=h.num_mels_loss, fmax_loss=h.fmax_for_loss,
-                          device=device, fine_tuning=a.fine_tuning, base_mels_path=a.input_mels_dir, use_cache=True)
+                          device=device, fine_tuning=a.fine_tuning, base_mels_path=a.input_mels_dir, use_cache=False)
 
     train_sampler = DistributedSampler(trainset) if h.num_gpus > 1 else None
 
-    train_loader = DataLoader(trainset, num_workers=h.num_workers, shuffle=False,
+    train_loader = DataLoader(trainset, num_workers=h.num_workers, 
+                            shuffle=False,
                               sampler=train_sampler,
                               batch_size=h.batch_size,
                               pin_memory=True,
-                              drop_last=True,
-                              persistent_workers=True)
+                              prefetch_factor=100,
+                              drop_last=True)
 
     if rank == 0:
         validset = MelDataset(validation_filelist, h.segment_size, h.n_fft, h.num_mels,
