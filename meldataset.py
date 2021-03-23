@@ -128,9 +128,9 @@ class MelDataset(torch.utils.data.Dataset):
             audio = torch.FloatTensor(audio)
             audio = audio.unsqueeze(0)
             if self.use_cache:
-                self.cached_wav[filename] = audio
+                self.cached_wav[filename] = audio.detach().clone()
         else:
-            audio = self.cached_wav[filename]
+            audio = self.cached_wav[filename].detach().clone()
 
         if not self.use_cache or mel_filename not in self.cache_mel.keys():
             if os.path.exists(mel_filename):
@@ -145,9 +145,9 @@ class MelDataset(torch.utils.data.Dataset):
                 np.save(mel_filename, mel.numpy())
                 
             if self.use_cache:
-                self.cache_mel[mel_filename] = mel
+                self.cache_mel[mel_filename] = mel.detach().clone()
         else:
-            mel = self.cache_mel[mel_filename]
+            mel = self.cache_mel[mel_filename].detach().clone()
 
         if self.split:
             frames_per_seg = math.ceil(self.segment_size / self.hop_size)
